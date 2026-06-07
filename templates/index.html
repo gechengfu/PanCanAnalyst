@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PanCanAnalyst | 胰腺癌多组学分析平台</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #0A192F;
+            --primary-light: #112240;
+            --accent-color: #00E5FF;
+            --accent-hover: #00B8D4;
+            --text-main: #2D3748;
+            --text-light: #A0AEC0;
+            --bg-body: #F4F7F9;
+            --bg-panel: #FFFFFF;
+            --border-color: #E2E8F0;
+            --danger: #EF4444;
+            --success: #10B981;
+            --warning: #F59E0B;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-main); font-size: 14px; overflow-x: hidden; }
+
+        /* ─── 顶部导航栏 ─── */
+        .navbar {
+            background-color: var(--primary-color);
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .navbar .logo { font-size: 20px; font-weight: bold; color: var(--accent-color); display: flex; align-items: center; gap: 8px; }
+        .navbar .logo span { color: white; }
+        .nav-actions { display: flex; gap: 16px; align-items: center; }
+        .data-status { font-size: 12px; background: rgba(16,185,129,0.2); color: var(--success); padding: 4px 10px; border-radius: 12px; border: 1px solid var(--success); transition: all 0.3s; }
+        .data-status.mock { background: rgba(239,68,68,0.2); color: var(--danger); border-color: var(--danger); }
+        .data-status.mixed { background: rgba(245,158,11,0.2); color: var(--warning); border-color: var(--warning); }
+        .btn-outline { background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color); padding: 6px 16px; border-radius: 4px; cursor: pointer; transition: all 0.3s; font-size: 13px; }
+        .btn-outline:hover { background: var(--accent-color); color: var(--primary-color); }
+
+        /* ─── 主体布局 ─── */
+        .app-container { display: flex; height: calc(100vh - 60px); }
+
+        /* ─── 左侧边栏 ─── */
+        .sidebar {
+            width: 290px;
+            min-width: 290px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .sidebar-section h3 { font-size: 14px; color: var(--primary-color); margin-bottom: 12px; border-left: 3px solid var(--accent-color); padding-left: 8px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 12px; color: var(--text-light); margin-bottom: 4px; font-weight: 500; }
+        .form-control { width: 100%; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; transition: border-color 0.2s; }
+        .form-control:focus { outline: none; border-color: var(--accent-color); }
+
+        .wizard-btn {
+            width: 100%; background: var(--primary-light); color: white; border: none; padding: 10px 12px; border-radius: 4px; margin-bottom: 8px; cursor: pointer; text-align: left; font-size: 13px; transition: 0.2s; border-left: 3px solid transparent;
+        }
+        .wizard-btn:hover { background: var(--primary-color); border-left-color: var(--accent-color); }
+
+        .sidebar-section .hint { font-size: 11px; color: var(--text-light); margin-top: 4px; line-height: 1.4; }
+
+        /* ─── 主内容区 ─── */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* 参数快照 */
+        .param-snapshot {
+            background: white; padding: 10px 24px; border-bottom: 1px solid var(--border-color); font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; color: var(--text-light); align-items: center;
+        }
+        .param-snapshot .tag { background: var(--bg-body); padding: 3px 10px; border-radius: 4px; border: 1px solid var(--border-color); color: var(--primary-color); font-size: 12px; }
+
+        /* Tab 导航 */
+        .tabs { display: flex; background: var(--bg-panel); border-bottom: 1px solid var(--border-color); padding: 0 24px; }
+        .tab-btn {
+            padding: 14px 20px; border: none; background: none; font-size: 14px; font-weight: 500; color: var(--text-light); cursor: pointer; border-bottom: 2px solid transparent; transition: 0.3s;
+        }
+        .tab-btn:hover { color: var(--primary-color); }
+        .tab-btn.active { color: var(--primary-color); border-bottom-color: var(--accent-color); }
+
+        /* Tab 内容区 */
+        .tab-content { flex: 1; padding: 24px; overflow-y: auto; display: none; background: var(--bg-body); }
+        .tab-content.active { display: block; }
+
+        /* 卡片 */
+        .card {
+            background: var(--bg-panel); border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; border: 1px solid var(--border-color);
+        }
+        .card-header {
+            padding: 14px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; cursor: pointer;
+        }
+        .card-title { font-size: 15px; font-weight: 600; color: var(--primary-color); display: flex; align-items: center; gap: 8px; }
+        .card-body { padding: 20px; }
+        .card-subtitle { font-size: 12px; color: var(--text-light); margin-bottom: 12px; }
+
+        /* 折叠面板 */
+        .collapsible .card-body { display: none; }
+        .collapsible.open .card-body { display: block; }
+        .collapse-icon { font-size: 12px; color: var(--text-light); transition: transform 0.3s; }
+        .collapsible.open .collapse-icon { transform: rotate(180deg); }
+
+        .plot-container { width: 100%; height: 420px; position: relative; }
+        .plot-container.tall { height: 520px; }
+        .plot-container.short { height: 320px; }
+
+        .flex-row { display: flex; gap: 24px; flex-wrap: wrap; }
+        .flex-row > .card { flex: 1; min-width: 420px; }
+
+        /* 气泡提示 */
+        .tooltip-icon {
+            display: inline-flex; justify-content: center; align-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--text-light); color: white; font-size: 10px; cursor: help; position: relative; font-style: normal;
+        }
+        .tooltip-icon::after {
+            content: attr(data-tip); position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: var(--primary-color); color: white; padding: 6px 10px; border-radius: 4px; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 10; max-width: 300px; white-space: normal;
+        }
+        .tooltip-icon:hover::after { opacity: 1; }
+
+        /* 骨架屏 / 加载层 */
+        .loading-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.85); display: none; justify-content: center; align-items: center; z-index: 5; flex-direction: column; gap: 10px; border-radius: 8px;
+        }
+        .loading-overlay.active { display: flex; }
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--border-color); border-top-color: var(--accent-color); border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 13px; color: var(--text-light); }
+
+        /* 数据表格 */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .data-table th, .data-table td { border: 1px solid var(--border-color); padding: 10px 12px; text-align: left; }
+        .data-table th { background-color: var(--bg-body); color: var(--primary-color); font-weight: 600; position: sticky; top: 0; }
+        .data-table tr:hover { background: #f7fafc; }
+        .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; display: inline-block; }
+        .badge.fda { background: #d1fae5; color: #065f46; }
+        .badge.trial { background: #e0e7ff; color: #3730a3; }
+        .badge.preclinical { background: #fef3c7; color: #92400e; }
+        .badge.na { background: #f3f4f6; color: #6b7280; }
+        .badge.source-real { background: #d1fae5; color: #065f46; }
+        .badge.source-mock { background: #fee2e2; color: #991b1b; }
+
+        /* 底部操作栏 */
+        .bottom-bar {
+            background: var(--bg-panel); border-top: 1px solid var(--border-color); padding: 10px 24px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .bottom-bar .info { font-size: 12px; color: var(--text-light); }
+
+        /* 响应式 */
+        @media (max-width: 1200px) {
+            .app-container { flex-direction: column; }
+            .sidebar { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--border-color); max-height: 220px; flex-direction: row; flex-wrap: wrap; }
+            .flex-row > .card { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="navbar">
+    <div class="logo">&#x1F9EC; PanCan<span>Analyst</span></div>
+    <div class="nav-actions">
+        <span class="data-status mock" id="global-data-status">&#x25CF; 正在初始化...</span>
+        <button class="btn-outline" onclick="exportReport()">&#x1F4E5; 生成报告</button>
+        <button class="btn-outline" onclick="generateLink()">&#x1F517; 复现链接</button>
+    </div>
+</header>
+
+<div class="app-container">
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <h3>分析向导</h3>
+            <button class="wizard-btn" onclick="runWizard('survival')">&#x1F4CA; 查找基因预后价值</button>
+            <button class="wizard-btn" onclick="runWizard('subtype')">&#x1F52C; 比较经典 vs 基底样亚型</button>
+            <button class="wizard-btn" onclick="runWizard('drug')">&#x1F48A; 挖掘突变-药物匹配</button>
+        </div>
+
+        <div class="sidebar-section">
+            <h3>全局数据筛选</h3>
+            <div class="form-group">
+                <label>数据集 (Dataset)</label>
+                <select class="form-control" id="ctrl-dataset">
+                    <option value="TCGA-PAAD">TCGA PanCan Atlas (PAAD)</option>
+                    <option value="ICGC-PACA">ICGC PACA-CA</option>
+                    <option value="GENIE">CPTAC (PAAD)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>亚型筛选 (Subtype)</label>
+                <select class="form-control" id="ctrl-subtype">
+                    <option value="ALL">全部 (All Subtypes)</option>
+                    <option value="Classical">经典型 (Classical)</option>
+                    <option value="Basal">基底样型 (Basal-like)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>目标基因 (用逗号分隔)</label>
+                <input type="text" class="form-control" id="ctrl-gene" value="KRAS, TP53, SMAD4, CDKN2A" placeholder="KRAS, TP53, SMAD4">
+            </div>
+            <button class="btn-outline" style="width:100%; text-align:center; margin-top:8px; padding:10px;" onclick="triggerFullAnalysis()">
+                &#x25B6; 开始分析 / 更新图表
+            </button>
+            <p class="hint">点击上方按钮将同时向 cBioPortal、CIViC 等公共 API 发起请求。若请求失败将自动切换至演示数据。</p>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="param-snapshot" id="param-snapshot"></div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-target="tab-mutation">&#x1F9EC; 突变分析</button>
+            <button class="tab-btn" data-target="tab-expression">&#x1F4CA; 表达分析</button>
+            <button class="tab-btn" data-target="tab-survival">&#x23F3; 生存预后</button>
+            <button class="tab-btn" data-target="tab-dimred">&#x1F30D; 降维聚类</button>
+            <button class="tab-btn" data-target="tab-drug">&#x1F48A; 药物与临床</button>
+        </div>
+
+        <!-- ═══════════════ 突变分析 ═══════════════ -->
+        <div id="tab-mutation" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">OncoPrint 突变全景图 <i class="tooltip-icon" data-tip="行=基因，列=样本。颜色代表突变类型。数据来自 cBioPortal MAF 注释。">i</i></div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="badge source-mock" id="src-oncoprint">loading</span>
+                        <button class="btn-outline" onclick="downloadPlot('plot-oncoprint')">PNG</button>
+                    </div>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <div id="plot-oncoprint" class="plot-container tall"></div>
+                    <div class="loading-overlay" id="load-oncoprint"><div class="spinner"></div><p class="loading-text">正在从 cBioPortal 拉取突变数据...</p></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">突变频率统计 <i class="tooltip-icon" data-tip="展示各基因在所选队列中的突变频率">i</i></div>
+                    <button class="btn-outline" onclick="downloadPlot('plot-freq')">PNG</button>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <div id="plot-freq" class="plot-container short"></div>
+                    <div class="loading-overlay" id="load-freq"><div class="spinner"></div><p class="loading-text">计算中...</p></div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-lollipop">
+                <div class="card-header" onclick="togglePanel('panel-lollipop', renderLollipop)">
+                    <div class="card-title">蛋白结构域突变分布 (棒棒糖图) <i class="tooltip-icon" data-tip="展示特定基因在蛋白水平的突变热点分布">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body">
+                    <p class="card-subtitle">展示第一个目标基因的蛋白突变位点分布。真实数据需映射 cBioPortal 的 proteinChange 字段。</p>
+                    <div id="plot-lollipop" class="plot-container"></div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-comut">
+                <div class="card-header" onclick="togglePanel('panel-comut', renderCoMutation)">
+                    <div class="card-title">共突变 / 互斥分析 <i class="tooltip-icon" data-tip="检测基因对之间的共突变(共现)或互斥关系">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body">
+                    <div id="plot-comut" class="plot-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ 表达分析 ═══════════════ -->
+        <div id="tab-expression" class="tab-content">
+            <div class="flex-row">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">差异表达火山图 <i class="tooltip-icon" data-tip="比较 Classical vs Basal-like 亚型间的基因表达差异。红=上调，绿=下调。">i</i></div>
+                        <span class="badge source-mock" id="src-volcano">loading</span>
+                    </div>
+                    <div class="card-body" style="position:relative;">
+                        <div id="plot-volcano" class="plot-container"></div>
+                        <div class="loading-overlay" id="load-volcano"><div class="spinner"></div><p class="loading-text">计算差异表达...</p></div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">目标基因表达箱线图 <i class="tooltip-icon" data-tip="目标基因在选定队列中的表达分布 (log2 TPM)">i</i></div>
+                        <span class="badge source-mock" id="src-boxplot">loading</span>
+                    </div>
+                    <div class="card-body" style="position:relative;">
+                        <div id="plot-boxplot" class="plot-container"></div>
+                        <div class="loading-overlay" id="load-boxplot"><div class="spinner"></div><p class="loading-text">获取表达数据...</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-heatmap">
+                <div class="card-header" onclick="togglePanel('panel-heatmap', renderHeatmap)">
+                    <div class="card-title">基因集表达热图 <i class="tooltip-icon" data-tip="选定基因在所有样本中的表达热图">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body">
+                    <div id="plot-heatmap" class="plot-container tall"></div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-pathway">
+                <div class="card-header" onclick="togglePanel('panel-pathway', renderPathway)">
+                    <div class="card-title">GO/KEGG 通路富集分析 <i class="tooltip-icon" data-tip="通过 Enrichr API 对差异基因进行 KEGG 通路富集分析">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <div id="plot-pathway" class="plot-container"></div>
+                    <div class="loading-overlay" id="load-pathway"><div class="spinner"></div><p class="loading-text">查询 Enrichr API...</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ 生存预后 ═══════════════ -->
+        <div id="tab-survival" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Kaplan-Meier 生存曲线 <i class="tooltip-icon" data-tip="基于基因表达中位数分组的总体生存期(OS)分析">i</i></div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="badge source-mock" id="src-km">loading</span>
+                        <button class="btn-outline" onclick="downloadPlot('plot-km')">PNG</button>
+                    </div>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <div style="margin-bottom:12px;">
+                        <label style="font-size:12px;color:var(--text-light);margin-right:8px;">分组基因:</label>
+                        <select class="form-control" id="ctrl-km-gene" style="width:160px;display:inline-block;" onchange="renderKM()">
+                        </select>
+                    </div>
+                    <div id="plot-km" class="plot-container tall"></div>
+                    <div class="loading-overlay" id="load-km"><div class="spinner"></div><p class="loading-text">计算生存曲线...</p></div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-cox">
+                <div class="card-header" onclick="togglePanel('panel-cox', renderCox)">
+                    <div class="card-title">Cox 回归森林图 <i class="tooltip-icon" data-tip="单/多变量 Cox 比例风险模型。展示风险比(HR)及 95% 置信区间。">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <p class="card-subtitle">注: 真实多变量 Cox 回归需后端 R/Python 统计引擎。此处展示简化版单变量 HR 估计。</p>
+                    <div id="plot-cox" class="plot-container"></div>
+                    <div class="loading-overlay" id="load-cox"><div class="spinner"></div><p class="loading-text">计算 Cox 回归...</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ 降维与聚类 ═══════════════ -->
+        <div id="tab-dimred" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">PCA 主成分分析 <i class="tooltip-icon" data-tip="基于选定基因的 RNA-seq 表达量进行 PCA 降维。按亚型着色。">i</i></div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <span class="badge source-mock" id="src-pca">loading</span>
+                        <button class="btn-outline" onclick="downloadPlot('plot-pca')">PNG</button>
+                    </div>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <div id="plot-pca" class="plot-container tall"></div>
+                    <div class="loading-overlay" id="load-pca"><div class="spinner"></div><p class="loading-text">计算 PCA 降维...</p></div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-tsne">
+                <div class="card-header" onclick="togglePanel('panel-tsne', renderTsneUmap)">
+                    <div class="card-title">t-SNE / UMAP 非线性降维 <i class="tooltip-icon" data-tip="基于 PCA 结果进一步进行非线性降维。前端展示模拟坐标。">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <div style="display:flex;gap:20px;">
+                        <div id="plot-tsne" class="plot-container" style="flex:1;"></div>
+                        <div id="plot-umap" class="plot-container" style="flex:1;"></div>
+                    </div>
+                    <div class="loading-overlay" id="load-tsne"><div class="spinner"></div><p class="loading-text">计算 t-SNE / UMAP...</p></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ 药物与临床 ═══════════════ -->
+        <div id="tab-drug" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">靶向药物匹配 (CIViC / OncoKB) <i class="tooltip-icon" data-tip="根据输入基因的特定变异匹配已知靶向药物及证据等级">i</i></div>
+                    <span class="badge source-mock" id="src-drug">loading</span>
+                </div>
+                <div class="card-body" style="position:relative; max-height:400px; overflow-y:auto;">
+                    <table class="data-table" id="table-drug">
+                        <thead>
+                            <tr>
+                                <th>基因</th>
+                                <th>变异 (Variant)</th>
+                                <th>药物 (Drug)</th>
+                                <th>响应类型</th>
+                                <th>证据等级</th>
+                                <th>来源</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div class="loading-overlay" id="load-drug"><div class="spinner"></div><p class="loading-text">查询 CIViC / OncoKB...</p></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">相关临床试验 (ClinicalTrials.gov) <i class="tooltip-icon" data-tip="查询胰腺癌相关的正在招募临床试验">i</i></div>
+                    <span class="badge source-mock" id="src-trials">loading</span>
+                </div>
+                <div class="card-body" style="position:relative; max-height:350px; overflow-y:auto;">
+                    <table class="data-table" id="table-trials">
+                        <thead>
+                            <tr>
+                                <th>NCT ID</th>
+                                <th>试验名称</th>
+                                <th>状态</th>
+                                <th>期别</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                    <div class="loading-overlay" id="load-trials"><div class="spinner"></div><p class="loading-text">查询 ClinicalTrials.gov...</p></div>
+                </div>
+            </div>
+
+            <div class="card collapsible" id="panel-chemo">
+                <div class="card-header" onclick="togglePanel('panel-chemo', renderChemo)">
+                    <div class="card-title">一线化疗药敏感性 (GDSC) <i class="tooltip-icon" data-tip="基于 GDSC 数据预测不同亚型对化疗药物的 IC50 分布">i</i></div>
+                    <span class="collapse-icon">&#x25BC;</span>
+                </div>
+                <div class="card-body" style="position:relative;">
+                    <p class="card-subtitle">注: 真实数据需解析 GDSC bulk download 或调用 PharmacoDB API。当前为模拟 IC50 分布。</p>
+                    <div id="plot-chemo" class="plot-container"></div>
+                    <div class="loading-overlay" id="load-chemo"><div class="spinner"></div><p class="loading-text">获取药敏数据...</p></div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  PanCanAnalyst — 前端核心逻辑
+//  数据流: 前端 → Flask /api/* → 外部API/Mock → Plotly 渲染
+// ══════════════════════════════════════════════
+
+const API_BASE = '';
+
+// ─── 全局状态 ───
+const AppState = {
+    dataset: 'TCGA-PAAD',
+    subtype: 'ALL',
+    genes: ['KRAS', 'TP53', 'SMAD4', 'CDKN2A'],
+    sampleSize: 0,
+    lastUpdate: '',
+    sources: {},
+};
+
+// ─── UI 工具 ───
+const UI = {
+    showLoading(id) { document.getElementById(`load-${id}`)?.classList.add('active'); },
+    hideLoading(id) { document.getElementById(`load-${id}`)?.classList.remove('active'); },
+    setSourceBadge(id, source) {
+        const el = document.getElementById(`src-${id}`);
+        if (!el) return;
+        const isReal = source && !source.includes('mock');
+        el.className = `badge ${isReal ? 'source-real' : 'source-mock'}`;
+        el.textContent = isReal ? source : 'Mock Data';
+        AppState.sources[id] = source;
+        UI.updateGlobalStatus();
+    },
+    updateGlobalStatus() {
+        const el = document.getElementById('global-data-status');
+        const vals = Object.values(AppState.sources);
+        const hasReal = vals.some(v => v && !v.includes('mock'));
+        const hasMock = vals.some(v => !v || v.includes('mock'));
+        if (hasReal && !hasMock) {
+            el.className = 'data-status';
+            el.innerHTML = '&#x25CF; 实时数据 (Live API)';
+        } else if (hasReal && hasMock) {
+            el.className = 'data-status mixed';
+            el.innerHTML = '&#x25CF; 混合模式 (部分实时)';
+        } else {
+            el.className = 'data-status mock';
+            el.innerHTML = '&#x25CF; 演示模式 (Mock Data)';
+        }
+    },
+};
+
+// ─── 通用 Fetch ───
+async function apiFetch(path, loadingId) {
+    if (loadingId) UI.showLoading(loadingId);
+    try {
+        const resp = await fetch(`${API_BASE}${path}`, { signal: AbortSignal.timeout(30000) });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.json();
+    } catch (e) {
+        console.error(`[apiFetch] ${path}`, e);
+        return { source: 'mock', error: e.message, data: null };
+    } finally {
+        if (loadingId) UI.hideLoading(loadingId);
+    }
+}
+
+// ─── 初始化 ───
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            e.target.classList.add('active');
+            document.getElementById(e.target.dataset.target).classList.add('active');
+            window.dispatchEvent(new Event('resize'));
+        });
+    });
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('dataset')) document.getElementById('ctrl-dataset').value = params.get('dataset');
+    if (params.get('genes')) document.getElementById('ctrl-gene').value = params.get('genes');
+
+    triggerFullAnalysis();
+});
+
+function readState() {
+    AppState.dataset = document.getElementById('ctrl-dataset').value;
+    AppState.subtype = document.getElementById('ctrl-subtype').value;
+    AppState.genes = document.getElementById('ctrl-gene').value.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function updateSnapshot() {
+    AppState.lastUpdate = new Date().toLocaleTimeString();
+    document.getElementById('param-snapshot').innerHTML = `
+        <span class="tag">数据集: ${AppState.dataset}</span>
+        <span class="tag">亚型: ${AppState.subtype === 'ALL' ? '全部' : AppState.subtype}</span>
+        <span class="tag">目标基因: ${AppState.genes.join(', ') || '无'}</span>
+        <span class="tag">有效样本: ${AppState.sampleSize}</span>
+        <span class="tag">更新: ${AppState.lastUpdate}</span>
+    `;
+}
+
+function togglePanel(id, renderFn) {
+    const el = document.getElementById(id);
+    const isOpen = el.classList.toggle('open');
+    if (isOpen && renderFn) renderFn();
+}
+
+// ══════════════════════════════════════════════
+//  核心分析触发
+// ══════════════════════════════════════════════
+async function triggerFullAnalysis() {
+    readState();
+    updateSnapshot();
+
+    const kmSelect = document.getElementById('ctrl-km-gene');
+    kmSelect.innerHTML = AppState.genes.map(g => `<option value="${g}">${g}</option>`).join('');
+
+    renderOncoPrint();
+    renderVolcano();
+    renderBoxplot();
+    renderKM();
+    renderPCA();
+    renderDrugTable();
+    renderTrials();
+}
+
+// ══════════════════════════════════════════════
+//  P0: OncoPrint
+// ══════════════════════════════════════════════
+async function renderOncoPrint() {
+    const genes = AppState.genes.join(',');
+    const result = await apiFetch(`/api/mutations?dataset=${AppState.dataset}&genes=${genes}`, 'oncoprint');
+    UI.setSourceBadge('oncoprint', result.source);
+    const d = result.data;
+    if (!d) return;
+
+    AppState.sampleSize = d.totalSamples || d.x?.length || 0;
+    updateSnapshot();
+
+    const colorscaleVals = [
+        [0, '#E2E8F0'],
+        [0.17, '#10B981'],
+        [0.33, '#3B82F6'],
+        [0.5, '#8B5CF6'],
+        [0.67, '#F59E0B'],
+        [0.83, '#EF4444'],
+        [1, '#EC4899'],
+    ];
+
+    const trace = {
+        z: d.z, x: d.x, y: d.y, text: d.text,
+        type: 'heatmap', colorscale: colorscaleVals, showscale: false,
+        hoverinfo: 'x+y+text', xgap: 1, ygap: 3,
+    };
+
+    const layout = {
+        margin: { t: 30, b: 60, l: 80, r: 20 },
+        xaxis: { showticklabels: false, title: `Samples (n=${d.x?.length || 0} shown / ${d.totalSamples || '?'} total)` },
+        yaxis: { tickfont: { size: 13, color: '#0A192F' }, autorange: 'reversed' },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-oncoprint', [trace], layout, { responsive: true });
+
+    // 突变频率柱状图
+    UI.showLoading('freq');
+    if (d.freq) {
+        const freqGenes = Object.keys(d.freq);
+        const freqVals = freqGenes.map(g => d.freq[g]);
+        const freqTrace = {
+            y: freqGenes, x: freqVals,
+            type: 'bar', orientation: 'h',
+            marker: {
+                color: freqVals.map(v => v > 50 ? '#EF4444' : v > 20 ? '#F59E0B' : '#3B82F6'),
+            },
+            text: freqVals.map(v => v + '%'), textposition: 'outside',
+        };
+        const freqLayout = {
+            margin: { t: 10, b: 40, l: 80, r: 60 },
+            xaxis: { title: 'Mutation Frequency (%)', range: [0, 100] },
+            yaxis: { autorange: 'reversed', tickfont: { size: 13 } },
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        };
+        Plotly.newPlot('plot-freq', [freqTrace], freqLayout, { responsive: true });
+    }
+    UI.hideLoading('freq');
+
+    window._oncoPrintData = d;
+}
+
+// ══════════════════════════════════════════════
+//  P0: 差异表达火山图
+// ══════════════════════════════════════════════
+async function renderVolcano() {
+    const result = await apiFetch(`/api/differential?dataset=${AppState.dataset}`, 'volcano');
+    UI.setSourceBadge('volcano', result.source);
+    const data = result.data;
+    if (!data || !data.length) return;
+
+    const x = data.map(d => d.logFC);
+    const y = data.map(d => d.negLogP);
+    const text = data.map(d => d.gene);
+    const colors = data.map(d => {
+        if (d.logFC > 1 && d.negLogP > 1.3) return 'rgba(239,68,68,0.7)';
+        if (d.logFC < -1 && d.negLogP > 1.3) return 'rgba(16,185,129,0.7)';
+        return 'rgba(160,174,192,0.4)';
+    });
+
+    const trace = {
+        x, y, text, mode: 'markers',
+        marker: { color: colors, size: 6 },
+        hoverinfo: 'text+x+y',
+    };
+
+    const layout = {
+        title: { text: 'Differential Expression (Classical vs Basal)', font: { size: 14 } },
+        xaxis: { title: 'Log2 Fold Change', zeroline: true, zerolinecolor: '#ccc' },
+        yaxis: { title: '-Log10(P-value)', zeroline: true },
+        shapes: [
+            { type: 'line', x0: 1, x1: 1, y0: 0, y1: Math.max(...y) * 1.1, line: { dash: 'dot', color: '#ccc' } },
+            { type: 'line', x0: -1, x1: -1, y0: 0, y1: Math.max(...y) * 1.1, line: { dash: 'dot', color: '#ccc' } },
+            { type: 'line', x0: Math.min(...x) - 1, x1: Math.max(...x) + 1, y0: 1.3, y1: 1.3, line: { dash: 'dot', color: '#ccc' } },
+        ],
+        margin: { t: 40, b: 50, l: 60, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-volcano', [trace], layout, { responsive: true });
+}
+
+// ══════════════════════════════════════════════
+//  P0: 表达箱线图
+// ══════════════════════════════════════════════
+async function renderBoxplot() {
+    const genes = AppState.genes.join(',');
+    const result = await apiFetch(`/api/expression?dataset=${AppState.dataset}&genes=${genes}`, 'boxplot');
+    UI.setSourceBadge('boxplot', result.source);
+    const data = result.data;
+    if (!data) return;
+
+    const traces = [];
+    const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
+    let idx = 0;
+    for (const [gene, samples] of Object.entries(data)) {
+        const vals = Object.values(samples);
+        traces.push({
+            y: vals, type: 'box', name: gene,
+            boxpoints: 'outliers', jitter: 0.3, pointpos: -1.5,
+            marker: { color: colors[idx % colors.length], size: 3 },
+            line: { color: colors[idx % colors.length] },
+        });
+        idx++;
+    }
+
+    const layout = {
+        title: { text: 'Gene Expression Distribution', font: { size: 14 } },
+        yaxis: { title: 'Expression (RNA-seq)' },
+        margin: { t: 40, b: 40, l: 60, r: 20 },
+        showlegend: false,
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-boxplot', traces, layout, { responsive: true });
+
+    window._exprData = data;
+}
+
+// ══════════════════════════════════════════════
+//  P0: Kaplan-Meier 生存曲线
+// ══════════════════════════════════════════════
+async function renderKM() {
+    const gene = document.getElementById('ctrl-km-gene')?.value || AppState.genes[0] || 'KRAS';
+    const result = await apiFetch(`/api/survival?dataset=${AppState.dataset}&gene=${gene}`, 'km');
+    UI.setSourceBadge('km', result.source);
+
+    const high = result.high || {};
+    const low = result.low || {};
+
+    const tHigh = {
+        x: high.time || [], y: high.survival || [],
+        mode: 'lines', line: { shape: 'hv', color: '#EF4444', width: 2.5 },
+        name: `High Expression (n=${result.nHigh || '?'})`,
+    };
+    const tLow = {
+        x: low.time || [], y: low.survival || [],
+        mode: 'lines', line: { shape: 'hv', color: '#3B82F6', width: 2.5 },
+        name: `Low Expression (n=${result.nLow || '?'})`,
+    };
+
+    const pDisplay = result.pValue != null ? (result.pValue < 0.001 ? result.pValue.toExponential(2) : result.pValue.toFixed(4)) : 'N/A';
+
+    const layout = {
+        title: { text: `${gene} — Overall Survival (Log-rank P = ${pDisplay})`, font: { size: 14 } },
+        xaxis: { title: 'Time (Months)' },
+        yaxis: { title: 'Survival Probability', range: [0, 1.05] },
+        legend: { x: 0.6, y: 0.95 },
+        margin: { t: 50, b: 50, l: 60, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        annotations: result.medianCutoff ? [{
+            x: 0.02, y: 0.02, xref: 'paper', yref: 'paper',
+            text: `Median cutoff: ${result.medianCutoff}`, showarrow: false,
+            font: { size: 11, color: '#A0AEC0' },
+        }] : [],
+    };
+    Plotly.newPlot('plot-km', [tHigh, tLow], layout, { responsive: true });
+}
+
+// ══════════════════════════════════════════════
+//  P0: PCA
+// ══════════════════════════════════════════════
+async function renderPCA() {
+    const genes = AppState.genes.concat(['GATA6', 'KRT81', 'MYC', 'ERBB2', 'BRCA1', 'BRCA2']).join(',');
+    const result = await apiFetch(`/api/pca?dataset=${AppState.dataset}&genes=${genes}`, 'pca');
+    UI.setSourceBadge('pca', result.source);
+
+    const pc1 = result.pc1 || [];
+    const pc2 = result.pc2 || [];
+    const subtypes = result.subtypes || [];
+    const uniqueTypes = [...new Set(subtypes)];
+    const colorMap = { 'Classical': '#3B82F6', 'Basal-like': '#F59E0B', 'Unknown': '#A0AEC0' };
+
+    const traces = uniqueTypes.map(st => ({
+        x: pc1.filter((_, i) => subtypes[i] === st),
+        y: pc2.filter((_, i) => subtypes[i] === st),
+        mode: 'markers', name: st,
+        marker: { color: colorMap[st] || '#8B5CF6', size: 7, opacity: 0.8 },
+    }));
+
+    const layout = {
+        title: { text: 'Transcriptome PCA', font: { size: 14 } },
+        xaxis: { title: `PC1 (${result.pc1Var || '?'}%)` },
+        yaxis: { title: `PC2 (${result.pc2Var || '?'}%)` },
+        legend: { x: 0.02, y: 0.98 },
+        margin: { t: 40, b: 50, l: 60, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-pca', traces, layout, { responsive: true });
+}
+
+// ══════════════════════════════════════════════
+//  P0: 药物匹配表格
+// ══════════════════════════════════════════════
+async function renderDrugTable() {
+    const genes = AppState.genes.join(',');
+    const result = await apiFetch(`/api/drug-match?genes=${genes}`, 'drug');
+    UI.setSourceBadge('drug', result.source);
+    const data = result.data || [];
+
+    const tbody = document.querySelector('#table-drug tbody');
+    tbody.innerHTML = '';
+
+    data.forEach(row => {
+        let evBadge = '';
+        const ev = (row.evidence || row.ev || '').toLowerCase();
+        if (ev.includes('fda')) evBadge = '<span class="badge fda">FDA</span>';
+        else if (ev.includes('phase')) evBadge = '<span class="badge trial">Trial</span>';
+        else if (ev.includes('preclinical')) evBadge = '<span class="badge preclinical">Preclinical</span>';
+        else evBadge = '<span class="badge na">-</span>';
+
+        const srcBadge = row.source === 'CIViC'
+            ? '<span class="badge source-real">CIViC</span>'
+            : '<span class="badge source-mock">Mock</span>';
+
+        tbody.innerHTML += `<tr>
+            <td style="font-weight:600;">${row.gene}</td>
+            <td>${row.variant || row.var || 'N/A'}</td>
+            <td>${row.drug || 'N/A'}</td>
+            <td>${row.response || row.resp || 'N/A'}</td>
+            <td>${evBadge} ${row.evidence || row.ev || 'N/A'}</td>
+            <td>${srcBadge}</td>
+        </tr>`;
+    });
+}
+
+// ══════════════════════════════════════════════
+//  P0: 临床试验表格
+// ══════════════════════════════════════════════
+async function renderTrials() {
+    const gene = AppState.genes[0] || 'KRAS';
+    const result = await apiFetch(`/api/clinical-trials?gene=${gene}`, 'trials');
+    UI.setSourceBadge('trials', result.source);
+    const data = result.data || [];
+
+    const tbody = document.querySelector('#table-trials tbody');
+    tbody.innerHTML = '';
+
+    data.forEach(row => {
+        const statusColor = row.status === 'RECRUITING' ? 'color:#10B981;font-weight:600;' : '';
+        tbody.innerHTML += `<tr>
+            <td><a href="https://clinicaltrials.gov/study/${row.nctId}" target="_blank" style="color:#3B82F6;">${row.nctId}</a></td>
+            <td>${row.title}</td>
+            <td style="${statusColor}">${row.status}</td>
+            <td><span class="badge trial">${row.phase}</span></td>
+        </tr>`;
+    });
+}
+
+// ══════════════════════════════════════════════
+//  折叠面板渲染（P1: 延迟加载）
+// ══════════════════════════════════════════════
+
+// 棒棒糖图
+function renderLollipop() {
+    if (document.getElementById('plot-lollipop')?.data) return;
+    const d = window._oncoPrintData;
+    const gene = AppState.genes[0] || 'KRAS';
+    const positions = d?.lollipop?.[gene.toUpperCase()] || [];
+
+    const posMap = {};
+    positions.forEach(p => {
+        const match = p.match(/[A-Z](\d+)/);
+        if (match) {
+            const pos = parseInt(match[1]);
+            posMap[pos] = (posMap[pos] || 0) + 1;
+        }
+    });
+
+    let xVals = Object.keys(posMap).map(Number);
+    let yVals = xVals.map(p => posMap[p]);
+
+    if (xVals.length === 0) {
+        xVals = [12, 13, 61, 117, 146];
+        yVals = [45, 8, 12, 3, 5];
+    }
+
+    const stem = {
+        x: xVals, y: Array(xVals.length).fill(0),
+        mode: 'markers', marker: { size: 0.1, color: 'transparent' },
+        showlegend: false, hoverinfo: 'none',
+    };
+    const heads = {
+        x: xVals, y: yVals, mode: 'markers',
+        marker: { size: yVals.map(v => Math.min(v * 3 + 8, 30)), color: '#EF4444', opacity: 0.8 },
+        text: xVals.map((p, i) => `Position ${p}: ${yVals[i]} mutations`),
+        hoverinfo: 'text', name: 'Mutations',
+    };
+
+    const shapes = xVals.map((x, i) => ({
+        type: 'line', x0: x, x1: x, y0: 0, y1: yVals[i],
+        line: { color: '#A0AEC0', width: 1.5 },
+    }));
+    shapes.push({
+        type: 'rect', x0: 0, x1: Math.max(...xVals) * 1.1, y0: -1, y1: -0.3,
+        fillcolor: '#3B82F6', opacity: 0.3, line: { width: 0 },
+    });
+
+    const layout = {
+        title: { text: `${gene} Protein Domain Mutation Map`, font: { size: 14 } },
+        xaxis: { title: 'Amino Acid Position' },
+        yaxis: { title: 'Mutation Count', rangemode: 'tozero' },
+        shapes,
+        margin: { t: 40, b: 50, l: 60, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-lollipop', [stem, heads], layout, { responsive: true });
+}
+
+// 共突变分析
+function renderCoMutation() {
+    if (document.getElementById('plot-comut')?.data) return;
+    const genes = AppState.genes.map(g => g.toUpperCase());
+    const d = window._oncoPrintData;
+    if (!d || genes.length < 2) return;
+
+    const n = genes.length;
+    const z = [];
+    const text = [];
+
+    for (let i = 0; i < n; i++) {
+        const row = [];
+        const rowText = [];
+        for (let j = 0; j < n; j++) {
+            if (i === j) { row.push(0); rowText.push('-'); continue; }
+            const ri = d.y.indexOf(genes[i]);
+            const rj = d.y.indexOf(genes[j]);
+            if (ri < 0 || rj < 0) { row.push(0); rowText.push('N/A'); continue; }
+            let both = 0, either = 0;
+            for (let k = 0; k < d.x.length; k++) {
+                const a = d.z[ri][k] > 0;
+                const b = d.z[rj][k] > 0;
+                if (a && b) both++;
+                if (a || b) either++;
+            }
+            const jaccard = either > 0 ? both / either : 0;
+            row.push(parseFloat(jaccard.toFixed(3)));
+            rowText.push(`Co-mut: ${both}/${either} (J=${jaccard.toFixed(2)})`);
+        }
+        z.push(row);
+        text.push(rowText);
+    }
+
+    const trace = {
+        z, x: genes, y: genes, text, type: 'heatmap',
+        colorscale: 'Blues', hoverinfo: 'x+y+text', showscale: true,
+    };
+    const layout = {
+        title: { text: 'Co-Mutation Matrix (Jaccard Index)', font: { size: 14 } },
+        margin: { t: 40, b: 80, l: 80, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-comut', [trace], layout, { responsive: true });
+}
+
+// 表达热图
+async function renderHeatmap() {
+    if (document.getElementById('plot-heatmap')?.data) return;
+    const data = window._exprData;
+    if (!data) return;
+
+    const genes = Object.keys(data);
+    const allSamples = new Set();
+    genes.forEach(g => Object.keys(data[g]).forEach(s => allSamples.add(s)));
+    const samples = [...allSamples].slice(0, 60);
+
+    const z = genes.map(g => samples.map(s => data[g]?.[s] ?? 0));
+
+    const trace = {
+        z, x: samples, y: genes, type: 'heatmap',
+        colorscale: 'RdBu', reversescale: true, showscale: true,
+    };
+    const layout = {
+        margin: { t: 10, b: 60, l: 80, r: 40 },
+        xaxis: { showticklabels: false, title: `Samples (n=${samples.length})` },
+        yaxis: { tickfont: { size: 12 } },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-heatmap', [trace], layout, { responsive: true });
+}
+
+// 通路富集
+async function renderPathway() {
+    if (document.getElementById('plot-pathway')?.data) return;
+    const genes = AppState.genes.join(',');
+    const result = await apiFetch(`/api/enrichment?genes=${genes}`, 'pathway');
+    const data = result.data || [];
+    if (!data.length) return;
+
+    const terms = data.map(d => d.term).reverse();
+    const vals = data.map(d => d.negLogP).reverse();
+
+    const trace = {
+        y: terms, x: vals, type: 'bar', orientation: 'h',
+        marker: { color: vals.map(v => `rgba(0, 229, 255, ${Math.min(v / 6, 1)})`) },
+        text: vals.map(v => v.toFixed(1)), textposition: 'outside',
+    };
+    const layout = {
+        title: { text: `KEGG Pathway Enrichment (source: ${result.source})`, font: { size: 14 } },
+        xaxis: { title: '-log10(P-value)' },
+        margin: { t: 40, b: 40, l: 200, r: 60 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-pathway', [trace], layout, { responsive: true });
+}
+
+// Cox 回归森林图
+async function renderCox() {
+    if (document.getElementById('plot-cox')?.data) return;
+    const genes = AppState.genes.join(',');
+    const result = await apiFetch(`/api/cox?dataset=${AppState.dataset}&genes=${genes}`, 'cox');
+    const data = result.data || [];
+    if (!data.length) return;
+
+    const vars = data.map(d => d.variable).reverse();
+    const hrs = data.map(d => d.hr).reverse();
+    const ciLows = data.map(d => d.hr - d.ciLow).reverse();
+    const ciHighs = data.map(d => d.ciHigh - d.hr).reverse();
+    const pVals = data.map(d => d.pValue).reverse();
+    const colors = pVals.map(p => p < 0.05 ? '#EF4444' : '#3B82F6');
+
+    const trace = {
+        x: hrs, y: vars, mode: 'markers',
+        marker: { symbol: 'diamond', size: 10, color: colors },
+        error_x: {
+            type: 'data', symmetric: false,
+            array: ciHighs, arrayminus: ciLows,
+            visible: true, thickness: 2, width: 6, color: '#A0AEC0',
+        },
+        text: data.map(d => `HR=${d.hr} (${d.ciLow}-${d.ciHigh}), P=${d.pValue}`).reverse(),
+        hoverinfo: 'text+y',
+    };
+
+    const layout = {
+        title: { text: 'Cox Proportional-Hazards (Forest Plot)', font: { size: 14 } },
+        xaxis: { title: 'Hazard Ratio (HR) with 95% CI', type: 'log' },
+        shapes: [{ type: 'line', x0: 1, x1: 1, y0: -0.5, y1: vars.length - 0.5, line: { dash: 'dot', color: '#EF4444', width: 1.5 } }],
+        margin: { t: 40, b: 50, l: 160, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-cox', [trace], layout, { responsive: true });
+}
+
+// t-SNE / UMAP
+async function renderTsneUmap() {
+    if (document.getElementById('plot-tsne')?.data) return;
+    const result = await apiFetch(`/api/tsne-umap?dataset=${AppState.dataset}`, 'tsne');
+    const subtypes = result.subtypes || [];
+    const colorMap = { 'Classical': '#3B82F6', 'Basal-like': '#F59E0B', 'Unknown': '#A0AEC0' };
+    const colors = subtypes.map(s => colorMap[s] || '#8B5CF6');
+
+    const tsne = result.tsne || {};
+    const umap = result.umap || {};
+
+    const tsnePlot = {
+        x: tsne.x || [], y: tsne.y || [],
+        mode: 'markers', marker: { color: colors, size: 6, opacity: 0.7 },
+        text: subtypes, hoverinfo: 'text',
+    };
+    const umapPlot = {
+        x: umap.x || [], y: umap.y || [],
+        mode: 'markers', marker: { color: colors, size: 6, opacity: 0.7 },
+        text: subtypes, hoverinfo: 'text',
+    };
+
+    const baseLay = {
+        margin: { t: 30, b: 40, l: 50, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    };
+    Plotly.newPlot('plot-tsne', [tsnePlot], { ...baseLay, title: { text: 't-SNE Projection', font: { size: 13 } } }, { responsive: true });
+    Plotly.newPlot('plot-umap', [umapPlot], { ...baseLay, title: { text: 'UMAP Projection', font: { size: 13 } } }, { responsive: true });
+}
+
+// 化疗药敏感性
+async function renderChemo() {
+    if (document.getElementById('plot-chemo')?.data) return;
+    const result = await apiFetch('/api/chemo-sensitivity', 'chemo');
+    const data = result.data || {};
+
+    const traces = [];
+    const colors = { 'Classical': '#3B82F6', 'Basal-like': '#F59E0B' };
+
+    for (const [drug, bySubtype] of Object.entries(data)) {
+        for (const [sub, vals] of Object.entries(bySubtype)) {
+            traces.push({
+                y: vals, type: 'box', name: `${drug} (${sub})`,
+                marker: { color: colors[sub] || '#8B5CF6' },
+                boxpoints: 'outliers',
+            });
+        }
+    }
+
+    const layout = {
+        title: { text: 'Predicted Drug Sensitivity (IC50)', font: { size: 14 } },
+        yaxis: { title: 'Estimated IC50 (log)' },
+        margin: { t: 40, b: 40, l: 60, r: 20 },
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        boxmode: 'group',
+    };
+    Plotly.newPlot('plot-chemo', traces, layout, { responsive: true });
+}
+
+// ══════════════════════════════════════════════
+//  向导 & 导出
+// ══════════════════════════════════════════════
+function runWizard(scenario) {
+    const geneInput = document.getElementById('ctrl-gene');
+    const subtypeInput = document.getElementById('ctrl-subtype');
+
+    if (scenario === 'survival') {
+        geneInput.value = 'KRAS, TP53, SMAD4';
+        subtypeInput.value = 'ALL';
+        document.querySelector('[data-target="tab-survival"]').click();
+    } else if (scenario === 'subtype') {
+        geneInput.value = 'GATA6, KRT81, MYC, ERBB2';
+        subtypeInput.value = 'ALL';
+        document.querySelector('[data-target="tab-expression"]').click();
+    } else if (scenario === 'drug') {
+        geneInput.value = 'KRAS, BRCA1, BRCA2, ERBB2';
+        subtypeInput.value = 'ALL';
+        document.querySelector('[data-target="tab-drug"]').click();
+    }
+    triggerFullAnalysis();
+}
+
+function downloadPlot(id) {
+    Plotly.downloadImage(id, { format: 'png', width: 1200, height: 700, filename: `PanCanAnalyst_${id}_${Date.now()}` });
+}
+
+function exportReport() {
+    const plots = ['plot-oncoprint', 'plot-freq', 'plot-volcano', 'plot-boxplot', 'plot-km', 'plot-pca'];
+    let html = `<html><head><title>PanCanAnalyst Report</title>
+    <style>body{font-family:sans-serif;max-width:1000px;margin:auto;padding:20px;}
+    h1{color:#0A192F;}h2{color:#112240;border-bottom:2px solid #00E5FF;padding-bottom:4px;}
+    img{max-width:100%;margin:10px 0;border:1px solid #E2E8F0;border-radius:4px;}
+    .param{background:#F4F7F9;padding:10px;border-radius:4px;font-size:13px;margin:10px 0;}</style></head><body>`;
+    html += `<h1>PanCanAnalyst Analysis Report</h1>`;
+    html += `<div class="param">Dataset: ${AppState.dataset} | Genes: ${AppState.genes.join(', ')} | Subtype: ${AppState.subtype} | Generated: ${new Date().toLocaleString()}</div>`;
+
+    const promises = plots.map(id => {
+        const el = document.getElementById(id);
+        if (el && el.data) return Plotly.toImage(id, { format: 'png', width: 900, height: 500 });
+        return Promise.resolve(null);
+    });
+
+    Promise.all(promises).then(images => {
+        const titles = ['OncoPrint', 'Mutation Frequency', 'Volcano Plot', 'Gene Expression', 'Kaplan-Meier Survival', 'PCA'];
+        images.forEach((img, i) => {
+            if (img) html += `<h2>${titles[i]}</h2><img src="${img}">`;
+        });
+        html += `</body></html>`;
+
+        const blob = new Blob([html], { type: 'text/html' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `PanCanAnalyst_Report_${Date.now()}.html`;
+        a.click();
+    });
+}
+
+function generateLink() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('dataset', AppState.dataset);
+    url.searchParams.set('genes', AppState.genes.join(','));
+    url.searchParams.set('subtype', AppState.subtype);
+    navigator.clipboard.writeText(url.toString()).then(() => {
+        alert('已复制可复现链接:\n' + url.toString());
+    }).catch(() => {
+        prompt('复制以下链接:', url.toString());
+    });
+}
+</script>
+
+</body>
+</html>
