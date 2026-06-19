@@ -344,10 +344,22 @@ def api_differential():
     try:
         clinical = _fetch_clinical_internal(dataset).get("data", {})
 
-        top_genes = ["KRAS", "TP53", "SMAD4", "CDKN2A", "GATA6", "KRT81",
-                     "MYC", "ERBB2", "BRCA1", "BRCA2", "CDK4", "MDM2",
-                     "AKT1", "PTEN", "EGFR", "MET", "BRAF", "PIK3CA",
-                     "ARID1A", "TGFBR2"]
+        top_genes = [
+            "KRAS", "TP53", "SMAD4", "CDKN2A", "GATA6", "KRT81",
+            "MYC", "ERBB2", "BRCA1", "BRCA2", "CDK4", "MDM2",
+            "AKT1", "PTEN", "EGFR", "MET", "BRAF", "PIK3CA",
+            "ARID1A", "TGFBR2", "VEGFA", "NOTCH1", "NOTCH2",
+            "CDKN1A", "RB1", "STK11", "MAP2K1", "FGFR1",
+            "JAK2", "STAT3", "SRC", "ABL1", "KIT", "PDGFRA",
+            "NRAS", "HRAS", "RAF1", "MTOR", "TSC1", "TSC2",
+            "NF1", "NF2", "VHL", "WT1", "IDH1", "IDH2",
+            "DNMT3A", "TET2", "SETD2", "KDM5C", "CREBBP",
+            "EP300", "GNAS", "CTNNB1", "APC", "AXIN1",
+            "FLT3", "ALK", "ROS1", "RET", "NTRK1",
+            "ATM", "ATR", "CHEK1", "CHEK2", "RAD51",
+            "PALB2", "FANCF", "MLH1", "MSH2", "MSH6",
+            "TERT", "MYB", "FOXP1", "SOX9", "HNF1A",
+        ]
         expr_result = _fetch_expression_internal(dataset, top_genes)
         gene_data = expr_result.get("data", {})
         if not gene_data:
@@ -379,6 +391,8 @@ def api_differential():
 
         results = []
         for gene, expr in gene_data.items():
+            if gene == "GATA6":
+                continue
             g1_raw = [expr[s] for s in group1_samples if s in expr]
             g2_raw = [expr[s] for s in group2_samples if s in expr]
             if len(g1_raw) > 3 and len(g2_raw) > 3:

@@ -124,10 +124,9 @@
         .tooltip-icon {
             display: inline-flex; justify-content: center; align-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--text-light); color: white; font-size: 10px; cursor: help; position: relative; font-style: normal;
         }
-        .tooltip-icon::after {
-            content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--primary-color); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; line-height: 1.5; white-space: normal; word-break: keep-all; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 1000; width: 260px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        .tip-box {
+            position: fixed; background: var(--primary-color); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; line-height: 1.6; white-space: normal; word-break: keep-all; z-index: 9999; width: 280px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.25); pointer-events: none; display: none;
         }
-        .tooltip-icon:hover::after { opacity: 1; }
 
         /* 骨架屏 / 加载层 */
         .loading-overlay {
@@ -1164,6 +1163,32 @@ function generateLink() {
         prompt('复制以下链接:', url.toString());
     });
 }
+// ─── Tooltip (JS 驱动，不依赖 ::after) ───
+(function() {
+    const box = document.createElement('div');
+    box.className = 'tip-box';
+    document.body.appendChild(box);
+
+    document.addEventListener('mouseenter', function(e) {
+        if (!e.target.classList.contains('tooltip-icon')) return;
+        const tip = e.target.getAttribute('data-tip');
+        if (!tip) return;
+        box.textContent = tip;
+        box.style.display = 'block';
+        const rect = e.target.getBoundingClientRect();
+        let top = rect.bottom + 8;
+        let left = rect.left + rect.width / 2 - 140;
+        if (left < 8) left = 8;
+        if (left + 280 > window.innerWidth) left = window.innerWidth - 288;
+        if (top + box.offsetHeight > window.innerHeight) top = rect.top - box.offsetHeight - 8;
+        box.style.top = top + 'px';
+        box.style.left = left + 'px';
+    }, true);
+
+    document.addEventListener('mouseleave', function(e) {
+        if (e.target.classList.contains('tooltip-icon')) box.style.display = 'none';
+    }, true);
+})();
 </script>
 
 </body>
