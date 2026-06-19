@@ -125,7 +125,7 @@
             display: inline-flex; justify-content: center; align-items: center; width: 16px; height: 16px; border-radius: 50%; background: var(--text-light); color: white; font-size: 10px; cursor: help; position: relative; font-style: normal;
         }
         .tooltip-icon::after {
-            content: attr(data-tip); position: absolute; bottom: 120%; left: 50%; transform: translateX(-50%); background: var(--primary-color); color: white; padding: 6px 10px; border-radius: 4px; font-size: 12px; white-space: nowrap; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 10; max-width: 300px; white-space: normal;
+            content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); background: var(--primary-color); color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px; line-height: 1.5; white-space: normal; word-break: keep-all; opacity: 0; pointer-events: none; transition: 0.2s; z-index: 1000; width: 260px; text-align: left; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .tooltip-icon:hover::after { opacity: 1; }
 
@@ -279,7 +279,7 @@
             <div class="flex-row">
                 <div class="card">
                     <div class="card-header">
-                        <div class="card-title">差异表达火山图 <i class="tooltip-icon" data-tip="比较 Classical vs Basal-like 亚型间的基因表达差异。红=上调，绿=下调。">i</i></div>
+                        <div class="card-title">差异表达火山图 <i class="tooltip-icon" data-tip="基于GATA6表达分组(高=经典型, 低=基底样型)的差异表达分析。红色=上调, 绿色=下调。">i</i></div>
                         <span class="badge source-mock" id="src-volcano">loading</span>
                     </div>
                     <div class="card-body" style="position:relative;">
@@ -644,9 +644,11 @@ async function renderVolcano() {
     const data = result.data;
     if (!data || !data.length) return;
 
+    const groupLabel = result.groupLabel || 'Group1 vs Group2';
+
     const x = data.map(d => d.logFC);
     const y = data.map(d => d.negLogP);
-    const text = data.map(d => d.gene);
+    const text = data.map(d => `${d.gene} (logFC=${d.logFC.toFixed(2)}, P=${d.pValue.toExponential(2)})`);
     const colors = data.map(d => {
         if (d.logFC > 1 && d.negLogP > 1.3) return 'rgba(239,68,68,0.7)';
         if (d.logFC < -1 && d.negLogP > 1.3) return 'rgba(16,185,129,0.7)';
@@ -655,12 +657,12 @@ async function renderVolcano() {
 
     const trace = {
         x, y, text, mode: 'markers',
-        marker: { color: colors, size: 6 },
-        hoverinfo: 'text+x+y',
+        marker: { color: colors, size: 7 },
+        hoverinfo: 'text',
     };
 
     const layout = {
-        title: { text: 'Differential Expression (Classical vs Basal)', font: { size: 14 } },
+        title: { text: `Differential Expression: ${groupLabel}`, font: { size: 13 } },
         xaxis: { title: 'Log2 Fold Change', zeroline: true, zerolinecolor: '#ccc' },
         yaxis: { title: '-Log10(P-value)', zeroline: true },
         shapes: [

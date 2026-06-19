@@ -353,20 +353,37 @@ def api_differential():
         if not gene_data:
             raise ValueError("No expression data")
 
+        # 用 GATA6 表达量中位数分组：高=Classical-like，低=Basal-like
+        # GATA6 是胰腺癌经典型/基底样型最主要的标志基因
+        gata6_expr = gene_data.get("GATA6", {})
         group1_samples = set()
         group2_samples = set()
-        for sid, attrs in clinical.items():
-            sub = attrs.get(group_by, "Unknown")
-            if sub in ("Classical", "Male", "I", "II"):
-                group1_samples.add(sid)
-            else:
-                group2_samples.add(sid)
+
+        if gata6_expr and len(gata6_expr) > 10:
+            median_gata6 = np.median(list(gata6_expr.values()))
+            for sid, val in gata6_expr.items():
+                if val >= median_gata6:
+                    group1_samples.add(sid)
+                else:
+                    group2_samples.add(sid)
+            group_label = f"GATA6-High (Classical, n={len(group1_samples)}) vs GATA6-Low (Basal, n={len(group2_samples)})"
+        else:
+            # fallback: 按肿瘤分级分组 (G1/G2 vs G3/G4)
+            for sid, attrs in clinical.items():
+                grade = attrs.get("GRADE", "")
+                if grade in ("G1", "G2"):
+                    group1_samples.add(sid)
+                elif grade in ("G3", "G4"):
+                    group2_samples.add(sid)
+            group_label = f"G1/G2 (n={len(group1_samples)}) vs G3/G4 (n={len(group2_samples)})"
 
         results = []
         for gene, expr in gene_data.items():
-            g1 = [expr[s] for s in group1_samples if s in expr]
-            g2 = [expr[s] for s in group2_samples if s in expr]
-            if len(g1) > 3 and len(g2) > 3:
+            g1_raw = [expr[s] for s in group1_samples if s in expr]
+            g2_raw = [expr[s] for s in group2_samples if s in expr]
+            if len(g1_raw) > 3 and len(g2_raw) > 3:
+                g1 = [math.log2(v + 1) for v in g1_raw]
+                g2 = [math.log2(v + 1) for v in g2_raw]
                 mean1, mean2 = np.mean(g1), np.mean(g2)
                 logfc = mean1 - mean2
                 _, pval = stats.ttest_ind(g1, g2)
@@ -379,7 +396,8 @@ def api_differential():
                     "pValue": pval, "negLogP": round(nlogp, 4),
                 })
 
-        return jsonify({"source": "computed", "data": results, "groups": [str(len(group1_samples)), str(len(group2_samples))]})
+        return jsonify({"source": "computed", "data": results, "groupLabel": group_label,
+                       "groups": [str(len(group1_samples)), str(len(group2_samples))]})
 
     except Exception as e:
         traceback.print_exc()
